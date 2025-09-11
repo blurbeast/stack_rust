@@ -1,8 +1,10 @@
 use std::env;
-use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
+use diesel::{Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods};
 use diesel::prelude::PgConnection;
 use dotenvy::dotenv;
-use crate::model::{NewPost, Post};
+use crate::model::{NewPost, NewUser, Post, PostTextBody, User};
+use crate::schema::users::dsl::users;
+use crate::schema::users::{email, name};
 
 mod schema;
 mod model;
@@ -17,10 +19,9 @@ pub struct AppConfiguration {
 pub fn run_database_connection() -> PgConnection {
     dotenv().ok();
 
-    PgConnection::establish(
-        &env::var("DATABASE_URL"
-        ).expect("could not load environment variable"))
-        .expect("could not connect to database")
+    let db_url = env::var("DATABASE_URL").expect("could not load environment variable");
+
+    PgConnection::establish(&db_url).expect("could not connect to database")
 }
 
 pub fn create_new_post(db_connection: &mut PgConnection, title: &str, body: &str) -> Post {
@@ -36,21 +37,60 @@ pub fn create_new_post(db_connection: &mut PgConnection, title: &str, body: &str
 
 fn main() {
 
+
     let pool = &mut run_database_connection();
 
-    let mut post_title = String::new();
-    let mut post_body = String::new();
+    // let mut post_title = String::new();
+    // let mut post_body = String::new();
+    //
+    // println!("enter the title");
+    // std::io::stdin().read_line(&mut post_title).expect("could not read line");
+    //
+    // println!("enter the body");
+    // std::io::stdin().read_line(&mut post_body).expect("could not read line");
+    //
+    // let new_post = create_new_post(pool, &post_title, &post_body);
 
-    println!("enter the title");
-    std::io::stdin().read_line(&mut post_title).expect("could not read line");
+    // println!("{:?}", new_post);
 
-    println!("enter the body");
-    std::io::stdin().read_line(&mut post_body).expect("could not read line");
+    use crate::schema::posts::dsl::*;
 
-    let new_post = create_new_post(pool, &post_title, &post_body);
+    //to update a db
+    diesel::update(posts.find(&1))
+        .set(published.eq(true))
+        .returning(Post::as_returning())
+        .get_result(pool)
+        .unwrap();
 
-    println!("{:?}", new_post);
+    let r = posts.filter(published.eq(true))
+        .limit(10)
+        .select(PostTextBody::as_select())
+        .load(pool)
+        .unwrap();
+
+    println!("{:#?}", r);
+
+    let rr = posts
+        .find(&1)
+        .select(Post::as_returning())
+        .first(pool)
+        .optional();
+
+
+    posts
+        .filter(title.eq("third"))
+        .select(PostTextBody::as_select())
+        .get_result(pool).optional();
+
+    println!("{:#?}", rr);
+
+    diesel::delete(posts.filter(title.like(""))).execute(pool).unwrap();
 
 
     println!("Hello, world!");
+    let new_user = NewUser { name: "test".to_string(), email: "emailsiio".to_string() };
+
+    // diesel::insert_into(users).values(&new_user).returning(User::as_select()).execute(pool).unwrap();
+
+    diesel::update(users).filter(email.eq("")).set((name.eq("jp"), email.eq("kpo"))).execute(pool).unwrap();
 }
